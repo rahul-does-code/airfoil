@@ -34,3 +34,22 @@ dist/
 
 # Accidental weird file
 =
+
+# Data files (too large for GitHub's 100MB limit)
+*.h5
+*.hdf5
+data/
+
+# Model checkpoints
+*.pt
+*.pth
+checkpoints/
+
+# XFOIL polar output files
+*.pol
+
+# Streamlit cache
+.streamlit/
+
+# Jupyter notebooks checkpoints
+.ipynb_checkpoints/
