@@ -1,4 +1,4 @@
-# NACA Airfoil Aerodynamic Surrogate Model
+## NACA Airfoil Aerodynamic Surrogate Model
 
 Physics-informed neural network surrogate for NACA 4-series airfoil aerodynamics,
 predicting lift coefficient (Cl), drag coefficient (Cd), and pitching moment (Cm)
