@@ -18,10 +18,19 @@ polar_*.txt
 
 # Generated/raw data
 data/raw/
-data/processed/
 
-# Model artifacts
+# Data/models — exclude bulk files but allow app essentials
+data/processed/
+!data/processed/scaler.pkl
+
 models/
+!models/mlp_geom13_physics0.001_wcd1_lowcd1_seed0.pt
+
+*.pt
+!models/mlp_geom13_physics0.001_wcd1_lowcd1_seed0.pt
+
+*.pth
+checkpoints/
 
 # Weights & Biases logs
 wandb/
@@ -32,24 +41,9 @@ dist/
 *.egg-info/
 .eggs/
 
-# Accidental weird file
-=
-
-# Data files (too large for GitHub's 100MB limit)
+# Large HDF5 files
 *.h5
 *.hdf5
-data/
 
-# Model checkpoints
-*.pt
-*.pth
-checkpoints/
-
-# XFOIL polar output files
-*.pol
-
-# Streamlit cache
-.streamlit/
-
-# Jupyter notebooks checkpoints
-.ipynb_checkpoints/
+# Accidental weird file
+=
