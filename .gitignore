@@ -1,15 +1,36 @@
+# Python
+__pycache__/
+*.pyc
+*.py[codz]
+*$py.class
+*.so
+
+# Virtual environments
+.venv/
+.env
+
+# macOS
+.DS_Store
+
+# XFOIL temporary files
 polar_*.txt
 *.bl
-.DS_Store
-__pycache__/
-*.pyc
-data/raw/*.h5
-data/raw/*.csv
-wandb/
-data/processed/
+
+# Generated/raw data
 data/raw/
+data/processed/
+
+# Model artifacts
 models/
-__pycache__/
-*.pyc
-.DS_Store
+
+# Weights & Biases logs
+wandb/
+
+# Packaging/build outputs
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Accidental weird file
 =
