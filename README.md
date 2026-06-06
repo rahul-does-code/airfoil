@@ -20,6 +20,6 @@ High-fidelity CFD is expensive. This surrogate replaces XFOIL queries with
 - Shape-level train/val/test split (70/15/15) to prevent data leakage
 
 ## Usage
-pip install -r requirements.txt
-python train.py
-streamlit run app.py
+- pip install -r requirements.txt
+- python train.py
+- streamlit run app.py
