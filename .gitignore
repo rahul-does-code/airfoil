@@ -1,0 +1,15 @@
+polar_*.txt
+*.bl
+.DS_Store
+__pycache__/
+*.pyc
+data/raw/*.h5
+data/raw/*.csv
+wandb/
+data/processed/
+data/raw/
+models/
+__pycache__/
+*.pyc
+.DS_Store
+=
