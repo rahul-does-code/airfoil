@@ -226,4 +226,4 @@ with st.expander("Raw prediction data"):
         "Cm":      np.round(cm, 5),
         "L/D":     np.round(cl / np.maximum(cd, 1e-8), 2),
     })
-    st.dataframe(df, use_container_width=True)
+    st.dataframe(df, use_container_width=True)    st.dataframe(df, use_container_width=True)
