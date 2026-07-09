@@ -4,6 +4,11 @@ src/build_results_table.py
 Assembles the full experiment results table across all feature sets and models.
 Prints a formatted table ready for inclusion in the writeup.
 
+Each model is scored against features engineered directly from the raw
+dataset for its own feature set (not sliced from a single cached X_test.npy —
+feature sets are not column-prefixes of each other, e.g. re11's columns 8-10
+are completely different engineered quantities than geom13's).
+
 Usage:
     PYTHONPATH=. python src/build_results_table.py
 """
@@ -12,31 +17,63 @@ import pickle
 import numpy as np
 import torch
 from pathlib import Path
-from sklearn.metrics import r2_score, mean_squared_error, mean_absolute_error
+from sklearn.metrics import r2_score, root_mean_squared_error, mean_absolute_error
+from sklearn.preprocessing import StandardScaler
 
 from model import AirfoilMLP
+from preprocess import load_raw, engineer_features, shape_level_split
 
-PROCESSED  = Path("data/processed")
-MODELS     = Path("models")
+RAW_H5 = Path("data/raw/polar_dataset.h5")
+MODELS = Path("models")
 
 # ── Experiment registry ───────────────────────────────────────────────────────
-# (display_name, type, path, input_dim)
+# (display_name, kind, path, feature_set, input_dim)
 EXPERIMENTS = [
     # Baselines
-    ("Ridge base8",     "ridge",   MODELS / "baseline.pkl",              8),
-    ("Ridge geom13",    "ridge",   MODELS / "baseline_geom13.pkl",       13),
+    ("Ridge base8",     "ridge",   MODELS / "baseline.pkl",              "base8",  8),
+    ("Ridge geom13",    "ridge",   MODELS / "baseline_geom13.pkl",       "geom13", 13),
     # Neural — base8
-    ("MLP base8",       "mlp",     MODELS / "mlp_physics0.001_wcd1_seed0.pt", 8),
+    ("MLP base8",       "mlp",     MODELS / "mlp_physics0.001_wcd1_seed0.pt", "base8", 8),
     # Neural — geom13 seeds
-    ("MLP geom13 s0",   "mlp",     MODELS / "mlp_geom13_physics0.001_wcd1_lowcd1_seed0.pt", 13),
-    ("MLP geom13 s1",   "mlp",     MODELS / "mlp_geom13_physics0.001_wcd1_lowcd1_seed1.pt", 13),
-    ("MLP geom13 s2",   "mlp",     MODELS / "mlp_geom13_physics0.001_wcd1_lowcd1_seed2.pt", 13),
-    ("MLP geom13 s3",   "mlp",     MODELS / "mlp_geom13_physics0.001_wcd1_lowcd1_seed3.pt", 13),
+    ("MLP geom13 s0",   "mlp",     MODELS / "mlp_geom13_physics0.001_wcd1_lowcd1_seed0.pt", "geom13", 13),
+    ("MLP geom13 s1",   "mlp",     MODELS / "mlp_geom13_physics0.001_wcd1_lowcd1_seed1.pt", "geom13", 13),
+    ("MLP geom13 s2",   "mlp",     MODELS / "mlp_geom13_physics0.001_wcd1_lowcd1_seed2.pt", "geom13", 13),
+    ("MLP geom13 s3",   "mlp",     MODELS / "mlp_geom13_physics0.001_wcd1_lowcd1_seed3.pt", "geom13", 13),
     # Neural — other feature sets
-    ("MLP polar9",      "mlp",     MODELS / "mlp_polar9_physics0.001_wcd1_seed0.pt",  9),
-    ("MLP re11",        "mlp",     MODELS / "mlp_re11_physics0.001_wcd1_seed0.pt",   11),
-    ("MLP all16",       "mlp",     MODELS / "mlp_all16_physics0.001_wcd1_seed0.pt",  16),
+    ("MLP polar9",      "mlp",     MODELS / "mlp_polar9_physics0.001_wcd1_seed0.pt",  "polar9", 9),
+    ("MLP re11",        "mlp",     MODELS / "mlp_re11_physics0.001_wcd1_seed0.pt",   "re11",   11),
+    ("MLP all16",       "mlp",     MODELS / "mlp_all16_physics0.001_wcd1_seed0.pt",  "all16",  16),
 ]
+
+
+def infer_input_dim_from_state_dict(state_dict: dict) -> int:
+    if "net.0.weight" not in state_dict:
+        raise ValueError("Checkpoint does not contain net.0.weight; incompatible architecture.")
+    return int(state_dict["net.0.weight"].shape[1])
+
+
+def prepare_data():
+    """Build Y_test/scaler once from raw data, and a per-feature-set X_test
+    cache, independent of whatever data/processed/X_test.npy currently holds."""
+    data = load_raw(RAW_H5)
+    train_idx, _val_idx, test_idx = shape_level_split(data)
+
+    log_cd = np.log(np.clip(data["cd"], 1e-8, None))
+    Y = np.stack([data["cl"], log_cd, data["cm"]], axis=1).astype(np.float32)
+    Y_train, Y_test = Y[train_idx], Y[test_idx]
+
+    scaler = StandardScaler()
+    scaler.fit(Y_train)
+    Y_test_s = scaler.transform(Y_test).astype(np.float32)
+
+    return data, test_idx, Y_test_s, scaler
+
+
+def x_test_for(data: dict, test_idx: np.ndarray, feature_set: str, cache: dict) -> np.ndarray:
+    if feature_set not in cache:
+        X, _names = engineer_features(data, feature_set=feature_set)
+        cache[feature_set] = X[test_idx]
+    return cache[feature_set]
 
 
 def to_physical(Y_scaled, scaler):
@@ -47,7 +84,7 @@ def to_physical(Y_scaled, scaler):
 
 def metrics(y_true, y_pred):
     r2   = r2_score(y_true, y_pred)
-    rmse = mean_squared_error(y_true, y_pred, squared=False)
+    rmse = root_mean_squared_error(y_true, y_pred)
     mae  = mean_absolute_error(y_true, y_pred)
     return r2, rmse, mae
 
@@ -67,12 +104,9 @@ def eval_ridge(pkl_path, X_np):
 
 
 def main():
-    X_test   = torch.from_numpy(np.load(PROCESSED / "X_test.npy"))
-    Y_test_s = np.load(PROCESSED / "Y_test.npy")
-    with open(PROCESSED / "scaler.pkl", "rb") as f:
-        scaler = pickle.load(f)
+    data, test_idx, Y_test_s, scaler = prepare_data()
     Y_true = to_physical(Y_test_s, scaler)
-    X_np   = X_test.numpy()
+    x_test_cache: dict[str, np.ndarray] = {}
 
     # Header
     w = 18
@@ -83,19 +117,28 @@ def main():
 
     geom13_preds = []   # collect for ensemble row
 
-    for name, kind, path, dim in EXPERIMENTS:
+    for name, kind, path, feature_set, dim in EXPERIMENTS:
         if not path.exists():
             print(f"{'  [missing] ' + name:<{w}}")
             continue
 
-        # Slice X to the right feature dimension
-        X_in = X_test[:, :dim] if kind == "mlp" else X_np[:, :dim]
+        X_np = x_test_for(data, test_idx, feature_set, x_test_cache)
 
         try:
             if kind == "mlp":
-                pred_s = eval_mlp(path, X_test[:, :dim], dim)
+                state_dict = torch.load(path, map_location="cpu")
+                ckpt_dim = infer_input_dim_from_state_dict(state_dict)
+                if ckpt_dim != dim:
+                    print(f"  SKIP {name}: registry says dim={dim} but checkpoint has "
+                          f"input_dim={ckpt_dim} — fix the EXPERIMENTS entry")
+                    continue
+                model = AirfoilMLP(input_dim=dim)
+                model.load_state_dict(state_dict)
+                model.eval()
+                with torch.no_grad():
+                    pred_s = model(torch.from_numpy(X_np)).numpy()
             else:
-                pred_s = eval_ridge(path, X_np[:, :dim])
+                pred_s = eval_ridge(path, X_np)
         except Exception as e:
             print(f"  ERROR loading {name}: {e}")
             continue
@@ -131,4 +174,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-    

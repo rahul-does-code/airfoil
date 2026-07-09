@@ -13,7 +13,7 @@ import pickle
 import numpy as np
 import torch
 from pathlib import Path
-from sklearn.metrics import r2_score, mean_squared_error, mean_absolute_error
+from sklearn.metrics import r2_score, root_mean_squared_error, mean_absolute_error
 
 from model import AirfoilMLP
 
@@ -51,8 +51,7 @@ def report(name: str, Y_true_phys: np.ndarray, Y_pred_phys: np.ndarray):
     print("-" * 60)
     for i, lbl in enumerate(labels):
         r2   = r2_score(Y_true_phys[:, i], Y_pred_phys[:, i])
-        rmse = mean_squared_error(Y_true_phys[:, i], Y_pred_phys[:, i],
-                                  squared=False)
+        rmse = root_mean_squared_error(Y_true_phys[:, i], Y_pred_phys[:, i])
         mae  = mean_absolute_error(Y_true_phys[:, i], Y_pred_phys[:, i])
         print(f"  {lbl}: R²={r2:.4f} | RMSE={rmse:.6f} | MAE={mae:.6f}")
 
@@ -70,27 +69,31 @@ def main():
     Y_true_phys = to_physical(Y_test_scaled.copy(), scaler)
 
     # ── Ensemble: average predictions in standardized space ──────────────────
-    preds_scaled = []
-    for ckpt in GEOM13_CHECKPOINTS:
+    # Keyed by seed index (not list position) so a missing seed can't shift
+    # which prediction later code treats as "seed0".
+    preds_scaled = {}
+    for seed_idx, ckpt in enumerate(GEOM13_CHECKPOINTS):
         if not ckpt.exists():
             print(f"WARNING: missing {ckpt.name}, skipping")
             continue
-        preds_scaled.append(run_model(ckpt, X_test))
+        preds_scaled[seed_idx] = run_model(ckpt, X_test)
         print(f"  Loaded {ckpt.name}")
 
     if len(preds_scaled) == 0:
         print("No checkpoints found — exiting.")
         return
 
-    ensemble_pred_scaled = np.mean(preds_scaled, axis=0)
+    ensemble_pred_scaled = np.mean(list(preds_scaled.values()), axis=0)
     ensemble_pred_phys   = to_physical(ensemble_pred_scaled.copy(), scaler)
-    report(f"Ensemble (n={len(preds_scaled)} seeds, geom13)", 
+    report(f"Ensemble (n={len(preds_scaled)} seeds, geom13)",
            Y_true_phys, ensemble_pred_phys)
 
     # ── Seed0 single model for direct comparison ──────────────────────────────
-    seed0_pred_scaled = preds_scaled[0]   # first entry is seed0
-    seed0_pred_phys   = to_physical(seed0_pred_scaled.copy(), scaler)
-    report("geom13 seed0 (single model)", Y_true_phys, seed0_pred_phys)
+    if 0 in preds_scaled:
+        seed0_pred_phys = to_physical(preds_scaled[0].copy(), scaler)
+        report("geom13 seed0 (single model)", Y_true_phys, seed0_pred_phys)
+    else:
+        print("\n(seed0 checkpoint unavailable — skipping seed0 comparison)")
 
     # ── Ridge baseline ────────────────────────────────────────────────────────
     baseline_path = MODELS / "baseline_geom13.pkl"

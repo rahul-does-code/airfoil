@@ -13,7 +13,7 @@ import pickle
 import numpy as np
 import torch
 from pathlib import Path
-from sklearn.metrics import r2_score, mean_squared_error, mean_absolute_error
+from sklearn.metrics import r2_score, root_mean_squared_error, mean_absolute_error
 
 from model import AirfoilMLP
 
@@ -54,7 +54,7 @@ def regime_report(name: str, cd_true: np.ndarray, cd_pred: np.ndarray,
         if n == 0:
             continue
         r2   = r2_score(cd_true[mask], cd_pred[mask])
-        rmse = mean_squared_error(cd_true[mask], cd_pred[mask], squared=False)
+        rmse = root_mean_squared_error(cd_true[mask], cd_pred[mask])
         mae  = mean_absolute_error(cd_true[mask], cd_pred[mask])
         print(f"{label:<20} {n:>6}  {r2:>8.4f}  {rmse:>10.6f}  {mae:>10.6f}")
 
@@ -93,20 +93,24 @@ def main():
     cd_distribution(alpha, cd_true)
 
     # ── Ensemble ──────────────────────────────────────────────────────────────
-    preds = []
-    for ckpt in GEOM13_CHECKPOINTS:
+    # Keyed by seed index (not list position) so a missing seed can't shift
+    # which prediction later code treats as "seed0".
+    preds = {}
+    for seed_idx, ckpt in enumerate(GEOM13_CHECKPOINTS):
         if ckpt.exists():
-            preds.append(run_model(ckpt, X_test))
-    
+            preds[seed_idx] = run_model(ckpt, X_test)
+
     if preds:
-        ens_pred_phys = to_physical(np.mean(preds, axis=0), scaler)
-        regime_report(f"Ensemble (n={len(preds)})", cd_true, 
+        ens_pred_phys = to_physical(np.mean(list(preds.values()), axis=0), scaler)
+        regime_report(f"Ensemble (n={len(preds)})", cd_true,
                       ens_pred_phys[:, 1], alpha)
 
     # ── Seed0 ─────────────────────────────────────────────────────────────────
-    if GEOM13_CHECKPOINTS[0].exists():
+    if 0 in preds:
         seed0_phys = to_physical(preds[0], scaler)
         regime_report("geom13 seed0", cd_true, seed0_phys[:, 1], alpha)
+    else:
+        print("\n(seed0 checkpoint unavailable — skipping seed0 comparison)")
 
 
 if __name__ == "__main__":
