@@ -5,25 +5,29 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 
-DATA_PATH = Path("data/raw/naca4_lhs_dataset.h5")
+DATA_PATH = Path("data/raw/polar_dataset.h5")
 PLOTS_DIR = Path("data/plots")
 
 
 def load_hdf5_dataset(path):
     with h5py.File(path, "r") as h5:
         data = {
-            "naca": [x.decode() for x in h5["naca"][:]],
-            "max_camber": h5["max_camber"][:],
-            "camber_position": h5["camber_position"][:],
-            "thickness": h5["thickness"][:],
-            "Re": h5["Re"][:],
+            "m": h5["m"][:],
+            "p": h5["p"][:],
+            "t": h5["t"][:],
+            "log_re": h5["log_re"][:],
             "alpha": h5["alpha"][:],
-            "CL": h5["CL"][:],
-            "CD": h5["CD"][:],
-            "CM": h5["CM"][:],
+            "cl": h5["cl"][:],
+            "cd": h5["cd"][:],
+            "cm": h5["cm"][:],
         }
 
-    return pd.DataFrame(data)
+    df = pd.DataFrame(data)
+    # (m, p, t) is the shape identifier used by preprocess.shape_level_split.
+    # There's no NACA code string stored in this schema, so build a readable
+    # per-shape label for grouping/legends instead.
+    df["shape"] = df.apply(lambda r: f"m={r['m']:.3f} p={r['p']:.2f} t={r['t']:.3f}", axis=1)
+    return df
 
 
 def main():
@@ -36,57 +40,57 @@ def main():
     print("Columns:")
     print(df.columns.tolist())
     print()
-    print("Rows per airfoil:")
-    print(df["naca"].value_counts().sort_index())
+    print("Rows per shape:")
+    print(df["shape"].value_counts().sort_index())
     print()
     print("Numerical summary:")
-    print(df[["max_camber", "camber_position", "thickness", "Re", "alpha", "CL", "CD", "CM"]].describe())
+    print(df[["m", "p", "t", "log_re", "alpha", "cl", "cd", "cm"]].describe())
     print()
 
-    bad_drag = df[df["CD"] <= 0]
-    print("Rows with CD <= 0:", len(bad_drag))
+    bad_drag = df[df["cd"] <= 0]
+    print("Rows with cd <= 0:", len(bad_drag))
 
-    missing_alpha_counts = df.groupby("naca")["alpha"].count()
+    missing_alpha_counts = df.groupby("shape")["alpha"].count()
     print()
-    print("Airfoils with fewer than 21 alpha points:")
+    print("Shapes with fewer than 21 alpha points:")
     print(missing_alpha_counts[missing_alpha_counts < 21])
 
-    # Plot CL vs alpha for each airfoil
+    # Plot Cl vs alpha for each shape
     plt.figure()
-    for naca, group in df.groupby("naca"):
+    for shape, group in df.groupby("shape"):
         group = group.sort_values("alpha")
-        plt.plot(group["alpha"], group["CL"], marker="o", linewidth=1, markersize=3, label=naca)
+        plt.plot(group["alpha"], group["cl"], marker="o", linewidth=1, markersize=3, label=shape)
 
     plt.xlabel("Angle of attack, alpha (deg)")
-    plt.ylabel("Lift coefficient, CL")
-    plt.title("CL vs Alpha for LHS Airfoil Samples")
+    plt.ylabel("Lift coefficient, Cl")
+    plt.title("Cl vs Alpha for LHS Airfoil Samples")
     plt.legend(fontsize=6, ncol=3)
     plt.tight_layout()
     plt.savefig(PLOTS_DIR / "cl_vs_alpha.png", dpi=200)
 
-    # Plot CD vs alpha for each airfoil
+    # Plot Cd vs alpha for each shape
     plt.figure()
-    for naca, group in df.groupby("naca"):
+    for shape, group in df.groupby("shape"):
         group = group.sort_values("alpha")
-        plt.plot(group["alpha"], group["CD"], marker="o", linewidth=1, markersize=3, label=naca)
+        plt.plot(group["alpha"], group["cd"], marker="o", linewidth=1, markersize=3, label=shape)
 
     plt.xlabel("Angle of attack, alpha (deg)")
-    plt.ylabel("Drag coefficient, CD")
-    plt.title("CD vs Alpha for LHS Airfoil Samples")
+    plt.ylabel("Drag coefficient, Cd")
+    plt.title("Cd vs Alpha for LHS Airfoil Samples")
     plt.legend(fontsize=6, ncol=3)
     plt.tight_layout()
     plt.savefig(PLOTS_DIR / "cd_vs_alpha.png", dpi=200)
 
-    # Plot CL/CD vs alpha
-    df["CL_over_CD"] = df["CL"] / df["CD"]
+    # Plot Cl/Cd vs alpha
+    df["cl_over_cd"] = df["cl"] / df["cd"]
 
     plt.figure()
-    for naca, group in df.groupby("naca"):
+    for shape, group in df.groupby("shape"):
         group = group.sort_values("alpha")
-        plt.plot(group["alpha"], group["CL_over_CD"], marker="o", linewidth=1, markersize=3, label=naca)
+        plt.plot(group["alpha"], group["cl_over_cd"], marker="o", linewidth=1, markersize=3, label=shape)
 
     plt.xlabel("Angle of attack, alpha (deg)")
-    plt.ylabel("CL / CD")
+    plt.ylabel("Cl / Cd")
     plt.title("Lift-to-Drag Ratio vs Alpha")
     plt.legend(fontsize=6, ncol=3)
     plt.tight_layout()
