@@ -4,6 +4,13 @@ src/generate_data.py
 Generate the surrogate training dataset via Latin Hypercube Sampling.
 Runs XFOIL across the NACA 4-series + Re space, stores results in HDF5.
 
+m/p/t are LHS-sampled continuously but then rounded to integer NACA 4-series
+digits before being handed to XFOIL. The HDF5 output stores the *effective*
+rounded m/p/t (what XFOIL actually simulated), not the pre-rounding
+continuous samples, so engineered features describe the real geometry.
+Datasets generated before this fix stored the pre-rounding continuous values
+instead.
+
 Usage:
     PYTHONPATH=. python src/generate_data.py --n_samples 2000 --output data/raw/polar_dataset.h5
 """
@@ -55,8 +62,17 @@ def run_one(xf: XFoil, m: float, p: float, t: float, log_re: float):
     t_digits = int(np.clip(int(round(t * 100)), 6, 21))
     d3, d4 = t_digits // 10, t_digits % 10
 
+    # The continuous LHS-sampled m/p/t get rounded to integer NACA digits
+    # above. Report the *effective* geometry XFOIL actually ran (not the
+    # pre-rounding continuous values) so downstream features describe the
+    # simulated airfoil, not a nearby point that happens to round the same way.
+    m_eff = d1 / 100.0
+    p_eff = d2 / 10.0
+    t_eff = (d3 * 10 + d4) / 100.0
+
     xf.airfoil = Naca4(d1, d2, d3, d4)
     xf.Re = 10 ** log_re
+    xf.M = 0.0  # incompressible assumption — XFOIL runs are low-speed only
     xf.max_iter = MAX_ITER
 
     try:
@@ -67,7 +83,7 @@ def run_one(xf: XFoil, m: float, p: float, t: float, log_re: float):
     if len(a) < MIN_CONVERGED_POINTS:
         return None
 
-    return np.array(a), np.array(cl), np.array(cd), np.array(cm)
+    return np.array(a), np.array(cl), np.array(cd), np.array(cm), m_eff, p_eff, t_eff
 
 
 def main(n_samples: int, output_path: Path):
@@ -92,13 +108,13 @@ def main(n_samples: int, output_path: Path):
                 print(f"  [{i + 1}/{n_samples}]  failed: {n_failed}  elapsed: {elapsed:.0f}s")
             continue
 
-        alphas, cls, cds, cms = result
+        alphas, cls, cds, cms, m_eff, p_eff, t_eff = result
         n_pts = len(alphas)
 
         records.append({
-            "m": np.full(n_pts, m),
-            "p": np.full(n_pts, p),
-            "t": np.full(n_pts, t),
+            "m": np.full(n_pts, m_eff),
+            "p": np.full(n_pts, p_eff),
+            "t": np.full(n_pts, t_eff),
             "log_re": np.full(n_pts, log_re),
             "alpha": alphas,
             "cl": cls,
