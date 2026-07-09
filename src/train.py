@@ -10,6 +10,7 @@ from torch.utils.data import DataLoader, TensorDataset
 import wandb
 
 from model import AirfoilMLP, PolyRidgeBaseline
+from preprocess import feature_names_for, FEATURE_SETS
 
 
 def read_feature_set(processed_dir: Path) -> str:
@@ -17,6 +18,26 @@ def read_feature_set(processed_dir: Path) -> str:
     if path.exists():
         return path.read_text().strip()
     return f"dim{np.load(processed_dir / 'X_train.npy').shape[1]}"
+
+
+# Fixed positions in the base8 prefix shared by every feature set (see
+# preprocess.feature_names_for) — needed by the alpha-derivative terms below
+# that depend on t_norm / log_re in addition to sin(alpha)/cos(alpha).
+T_NORM_IDX, LOG_RE_IDX = 5, 2
+
+# d(feature)/d(alpha_rad) for every engineered feature that actually depends
+# on alpha, keyed by name (see preprocess.feature_names_for for the full
+# feature list). Features not listed here are alpha-independent and
+# contribute zero to the total derivative.
+ALPHA_DERIVATIVE_TERMS = {
+    "sin_alpha": lambda sin_a, cos_a, x_lin: cos_a,
+    "cos_alpha": lambda sin_a, cos_a, x_lin: -sin_a,
+    "cl_linear": lambda sin_a, cos_a, x_lin: 2 * torch.pi * cos_a,
+    "cl_linear_sq": lambda sin_a, cos_a, x_lin: 2 * (2 * torch.pi * sin_a) * (2 * torch.pi * cos_a),
+    "abs_sin_alpha": lambda sin_a, cos_a, x_lin: torch.sign(sin_a) * cos_a,
+    "t_abs_alpha": lambda sin_a, cos_a, x_lin: x_lin[:, T_NORM_IDX] * torch.sign(sin_a) * cos_a,
+    "log_re_abs_sin_alpha": lambda sin_a, cos_a, x_lin: x_lin[:, LOG_RE_IDX] * torch.sign(sin_a) * cos_a,
+}
 
 
 def physics_informed_loss(
@@ -28,6 +49,7 @@ def physics_informed_loss(
     w_cd: float = 1.0,
     w_cd_low_alpha: float = 1.0,
     w_physics: float = 0.01,
+    feature_names: list[str] | None = None,
 ) -> torch.Tensor:
     """
     Combined supervised MSE + thin-airfoil gradient penalty.
@@ -36,9 +58,12 @@ def physics_informed_loss(
     thin-airfoil lift-slope target must also be standardized:
         dCl_scaled / d(alpha_rad) = 2π / Cl_std
 
-    Because alpha appears in multiple engineered features, the physics loss
-    uses the total derivative with respect to alpha, not only the partial
-    derivative with respect to sin(alpha).
+    Because alpha appears in multiple engineered features (not just
+    sin(alpha)), the physics loss uses the total derivative with respect to
+    alpha: it chains through every alpha-dependent column present in
+    `feature_names` via ALPHA_DERIVATIVE_TERMS, so the penalty is correct for
+    every feature set (base8/polar9/geom13/re11/all16), not only the ones
+    whose extra columns happen to be alpha-independent.
     """
     y_pred = model(x)
 
@@ -74,20 +99,28 @@ def physics_informed_loss(
         create_graph=True,
     )[0]
 
-    # Input feature columns:
-    #   0 = sin(alpha)
-    #   1 = cos(alpha)
-    #   6 = cl_linear = 2*pi*sin(alpha)
-    # Thin airfoil theory constrains dCl/dalpha_rad, so use the chain rule
-    # through every alpha-dependent engineered input feature.
+    # sin(alpha) and cos(alpha) are always columns 0 and 1 (see
+    # preprocess.feature_names_for) regardless of feature set.
     sin_a = x_lin[:, 0]
     cos_a = x_lin[:, 1]
 
-    dcl_scaled_dalpha = (
-        grad_x[:, 0] * cos_a
-        + grad_x[:, 1] * (-sin_a)
-        + grad_x[:, 6] * (2 * torch.pi * cos_a)
-    )
+    if feature_names is not None and feature_names[0] == "sin_alpha" and feature_names[1] == "cos_alpha":
+        dcl_scaled_dalpha = torch.zeros_like(sin_a)
+        for j, fname in enumerate(feature_names):
+            term_fn = ALPHA_DERIVATIVE_TERMS.get(fname)
+            if term_fn is not None:
+                dcl_scaled_dalpha = dcl_scaled_dalpha + grad_x[:, j] * term_fn(sin_a, cos_a, x_lin)
+    else:
+        # Unknown feature layout (e.g. legacy "dimN" fallback in
+        # read_feature_set) — fall back to the base8 chain-rule terms, which
+        # are always present at columns 0/1/6.
+        print("WARNING: physics_informed_loss got no recognized feature_names; "
+              "falling back to sin/cos/cl_linear-only chain rule.")
+        dcl_scaled_dalpha = (
+            grad_x[:, 0] * cos_a
+            + grad_x[:, 1] * (-sin_a)
+            + grad_x[:, 6] * (2 * torch.pi * cos_a)
+        )
 
     target_slope = (2 * torch.pi) / cl_std
     physics_penalty = F.mse_loss(
@@ -141,13 +174,15 @@ def train_mlp(
 
     input_dim = X_train.shape[1]
     feature_set = read_feature_set(processed_dir)
+    feature_names = feature_names_for(feature_set) if feature_set in FEATURE_SETS else None
 
     with open(processed_dir / "scaler.pkl", "rb") as f:
         scaler = pickle.load(f)
 
     cl_std = float(scaler.scale_[0])
     print(f"Cl std from scaler: {cl_std:.6f}")
-    print("Physics loss version: chain-rule dCl/dalpha through sin, cos, and cl_linear")
+    print(f"Physics loss version: chain-rule dCl/dalpha through all alpha-dependent "
+          f"features of feature_set={feature_set}")
     print(
         f"Training config: feature_set={feature_set}, input_dim={input_dim}, "
         f"epochs={epochs}, batch_size={batch_size}, "
@@ -206,6 +241,7 @@ def train_mlp(
                 w_cd=w_cd,
                 w_cd_low_alpha=w_cd_low_alpha,
                 w_physics=w_physics,
+                feature_names=feature_names,
             )
 
             loss.backward()

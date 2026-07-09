@@ -30,9 +30,38 @@ def load_raw(h5_path: Path) -> dict:
         return {k: f[k][:] for k in f.keys()}
 
 
-def engineer_features(data: dict, feature_set: str = "base8") -> tuple[np.ndarray, list[str]]:
+def feature_names_for(feature_set: str) -> list[str]:
+    """Ordered feature name list for a feature set. Single source of truth for
+    column ordering, shared by engineer_features() and the physics-informed
+    loss (which needs to know which columns are alpha-dependent)."""
     if feature_set not in FEATURE_SETS:
         raise ValueError(f"Unknown feature_set={feature_set!r}. Choose from {sorted(FEATURE_SETS)}")
+
+    names = [
+        "sin_alpha",
+        "cos_alpha",
+        "log_re",
+        "m_norm",
+        "p_norm",
+        "t_norm",
+        "cl_linear",
+        "t_over_c",
+    ]
+
+    if feature_set in {"polar9", "geom13", "all16"}:
+        names.append("cl_linear_sq")
+
+    if feature_set in {"geom13", "all16"}:
+        names.extend(["abs_sin_alpha", "t_norm_sq", "m_t", "t_abs_alpha"])
+
+    if feature_set in {"re11", "all16"}:
+        names.extend(["log_re_t", "log_re_sq", "log_re_abs_sin_alpha"])
+
+    return names
+
+
+def engineer_features(data: dict, feature_set: str = "base8") -> tuple[np.ndarray, list[str]]:
+    names = feature_names_for(feature_set)
 
     alpha_rad = np.deg2rad(data["alpha"])
 
@@ -51,27 +80,6 @@ def engineer_features(data: dict, feature_set: str = "base8") -> tuple[np.ndarra
     cl_linear = 2 * np.pi * sin_a
     t_over_c = data["t"]
 
-    features = [
-        sin_a,
-        cos_a,
-        log_re,
-        m_norm,
-        p_norm,
-        t_norm,
-        cl_linear,
-        t_over_c,
-    ]
-    names = [
-        "sin_alpha",
-        "cos_alpha",
-        "log_re",
-        "m_norm",
-        "p_norm",
-        "t_norm",
-        "cl_linear",
-        "t_over_c",
-    ]
-
     cl_linear_sq = cl_linear ** 2
     abs_sin_a = np.abs(sin_a)
     t_norm_sq = t_norm ** 2
@@ -82,19 +90,26 @@ def engineer_features(data: dict, feature_set: str = "base8") -> tuple[np.ndarra
     log_re_sq = log_re ** 2
     log_re_abs_sin_alpha = log_re * abs_sin_a
 
-    if feature_set in {"polar9", "geom13", "all16"}:
-        features.append(cl_linear_sq)
-        names.append("cl_linear_sq")
+    all_features = {
+        "sin_alpha": sin_a,
+        "cos_alpha": cos_a,
+        "log_re": log_re,
+        "m_norm": m_norm,
+        "p_norm": p_norm,
+        "t_norm": t_norm,
+        "cl_linear": cl_linear,
+        "t_over_c": t_over_c,
+        "cl_linear_sq": cl_linear_sq,
+        "abs_sin_alpha": abs_sin_a,
+        "t_norm_sq": t_norm_sq,
+        "m_t": m_t,
+        "t_abs_alpha": t_abs_alpha,
+        "log_re_t": log_re_t,
+        "log_re_sq": log_re_sq,
+        "log_re_abs_sin_alpha": log_re_abs_sin_alpha,
+    }
 
-    if feature_set in {"geom13", "all16"}:
-        features.extend([abs_sin_a, t_norm_sq, m_t, t_abs_alpha])
-        names.extend(["abs_sin_alpha", "t_norm_sq", "m_t", "t_abs_alpha"])
-
-    if feature_set in {"re11", "all16"}:
-        features.extend([log_re_t, log_re_sq, log_re_abs_sin_alpha])
-        names.extend(["log_re_t", "log_re_sq", "log_re_abs_sin_alpha"])
-
-    X = np.stack(features, axis=1).astype(np.float32)
+    X = np.stack([all_features[name] for name in names], axis=1).astype(np.float32)
     return X, names
 
 
