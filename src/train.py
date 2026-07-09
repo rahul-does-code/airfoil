@@ -39,6 +39,43 @@ ALPHA_DERIVATIVE_TERMS = {
     "log_re_abs_sin_alpha": lambda sin_a, cos_a, x_lin: x_lin[:, LOG_RE_IDX] * torch.sign(sin_a) * cos_a,
 }
 
+ALPHA_INDEPENDENT = {
+    "log_re",
+    "m_norm",
+    "p_norm",
+    "t_norm",
+    "t_over_c",
+    "t_norm_sq",
+    "m_t",
+    "log_re_t",
+    "log_re_sq",
+}
+
+def validate_alpha_derivative_coverage(feature_set: str) -> None:
+    """
+    Ensure every engineered feature is explicitly classified as either
+    alpha-dependent with a derivative rule or alpha-independent.
+
+    This prevents future alpha-dependent features from silently contributing
+    zero to dCl/dalpha.
+    """
+    problems = []
+
+    for name in feature_names_for(feature_set):
+        has_derivative = name in ALPHA_DERIVATIVE_TERMS
+        is_independent = name in ALPHA_INDEPENDENT
+
+        if has_derivative and is_independent:
+            problems.append(f"{name!r} appears in both derivative and independent sets")
+        elif not has_derivative and not is_independent:
+            problems.append(f"{name!r} appears in neither derivative nor independent set")
+
+    if problems:
+        joined = "\n  - ".join(problems)
+        raise ValueError(
+            f"Feature derivative coverage is incomplete for feature_set={feature_set!r}:\n"
+            f"  - {joined}"
+        )
 
 def physics_informed_loss(
     model: nn.Module,
@@ -142,6 +179,7 @@ def train_baseline(processed_dir: Path, out_path: Path):
     X_train = np.load(processed_dir / "X_train.npy")
     Y_train = np.load(processed_dir / "Y_train.npy")
     feature_set = read_feature_set(processed_dir)
+    validate_alpha_derivative_coverage(feature_set)
     print(f"Training baseline with feature_set={feature_set}, input_dim={X_train.shape[1]}")
 
     baseline = PolyRidgeBaseline(degree=3, alpha=10.0)
