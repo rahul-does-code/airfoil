@@ -23,6 +23,7 @@ from pathlib import Path
 import h5py
 import numpy as np
 from scipy.stats.qmc import LatinHypercube, scale
+from naca import naca_digits, digits_to_params
 
 # Add project root to path so local imports are available.
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -50,29 +51,14 @@ def sample_design_points(n_samples: int, seed: int = 42) -> np.ndarray:
 
 
 def run_one(xf: XFoil, m: float, p: float, t: float, log_re: float):
-    d1 = int(round(m * 100))
-    d2 = int(round(p * 10))
+    d1, d2, t_digits = naca_digits(m, p, t)
+    m_eff, p_eff, t_eff = digits_to_params(d1, d2, t_digits)
 
-    d1 = int(np.clip(d1, 0, 9))
-    d2 = int(np.clip(d2, 0, 9))
-
-    if d1 == 0:
-        d2 = 0
-
-    t_digits = int(np.clip(int(round(t * 100)), 6, 21))
     d3, d4 = t_digits // 10, t_digits % 10
-
-    # The continuous LHS-sampled m/p/t get rounded to integer NACA digits
-    # above. Report the *effective* geometry XFOIL actually ran (not the
-    # pre-rounding continuous values) so downstream features describe the
-    # simulated airfoil, not a nearby point that happens to round the same way.
-    m_eff = d1 / 100.0
-    p_eff = d2 / 10.0
-    t_eff = (d3 * 10 + d4) / 100.0
 
     xf.airfoil = Naca4(d1, d2, d3, d4)
     xf.Re = 10 ** log_re
-    xf.M = 0.0  # incompressible assumption — XFOIL runs are low-speed only
+    xf.M = 0.0
     xf.max_iter = MAX_ITER
 
     try:
@@ -83,8 +69,15 @@ def run_one(xf: XFoil, m: float, p: float, t: float, log_re: float):
     if len(a) < MIN_CONVERGED_POINTS:
         return None
 
-    return np.array(a), np.array(cl), np.array(cd), np.array(cm), m_eff, p_eff, t_eff
-
+    return (
+        np.array(a),
+        np.array(cl),
+        np.array(cd),
+        np.array(cm),
+        m_eff,
+        p_eff,
+        t_eff,
+    )
 
 def main(n_samples: int, output_path: Path):
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -152,7 +145,8 @@ def main(n_samples: int, output_path: Path):
         f.attrs["alpha_end"] = ALPHA_END
         f.attrs["alpha_step"] = ALPHA_STEP
         f.attrs["xfoil_source"] = "Homebrew XFOIL binary wrapped by local Python xfoil package"
-
+        f.attrs["features_are"] = "rounded discrete NACA parameters"
+        
     print(f"Saved → {output_path}")
 
 
