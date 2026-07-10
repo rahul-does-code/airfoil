@@ -18,6 +18,8 @@ polar_*.txt
 
 # Generated/raw data
 data/raw/
+data/raw/*.h5
+data/processed/*.npy
 
 # Data/models — exclude bulk files but allow app essentials
 data/processed/

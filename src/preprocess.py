@@ -112,21 +112,31 @@ def engineer_features(data: dict, feature_set: str = "base8") -> tuple[np.ndarra
     X = np.stack([all_features[name] for name in names], axis=1).astype(np.float32)
     return X, names
 
-
 def shape_level_split(data: dict, seed: int = 42):
     """
-    Split by unique airfoil shape: m, p, t.
-    All alpha/Re rows for a shape stay in the same split.
+    Split by discrete NACA airfoil identity: rounded m/p/t digits.
+
+    Re is deliberately excluded from identity. All alpha/Re rows for a
+    geometry stay in one split, so the test set measures generalization to
+    unseen geometry rather than unseen Reynolds numbers.
     """
     rng = np.random.default_rng(seed)
 
-    shapes = np.stack([data["m"], data["p"], data["t"]], axis=1)
+    shapes = np.stack(
+        [
+            np.round(data["m"] * 100),
+            np.round(data["p"] * 10),
+            np.round(data["t"] * 100),
+        ],
+        axis=1,
+    ).astype(int)
+
     unique_shapes = np.unique(shapes, axis=0)
     rng.shuffle(unique_shapes)
 
-    n = len(unique_shapes)
-    n_train = int(0.70 * n)
-    n_val = int(0.15 * n)
+    n_shapes = len(unique_shapes)
+    n_train = int(0.70 * n_shapes)
+    n_val = int(0.15 * n_shapes)
 
     train_shapes = set(map(tuple, unique_shapes[:n_train]))
     val_shapes = set(map(tuple, unique_shapes[n_train:n_train + n_val]))
@@ -143,12 +153,35 @@ def shape_level_split(data: dict, seed: int = 42):
         else:
             test_idx.append(i)
 
-    return (
-        np.array(train_idx, dtype=np.int64),
-        np.array(val_idx, dtype=np.int64),
-        np.array(test_idx, dtype=np.int64),
-    )
+    train_idx = np.array(train_idx, dtype=np.int64)
+    val_idx = np.array(val_idx, dtype=np.int64)
+    test_idx = np.array(test_idx, dtype=np.int64)
 
+    split_shape_counts = {
+        "train": len(train_shapes),
+        "val": len(val_shapes),
+        "test": n_shapes - len(train_shapes) - len(val_shapes),
+    }
+
+    split_row_counts = {
+        "train": len(train_idx),
+        "val": len(val_idx),
+        "test": len(test_idx),
+    }
+
+    total_rows = len(shapes)
+
+    print("Shape-level split:")
+    for name in ["train", "val", "test"]:
+        print(
+            f"  {name:<5}: "
+            f"{split_shape_counts[name]:>5} shapes "
+            f"({split_shape_counts[name] / n_shapes:>6.2%}), "
+            f"{split_row_counts[name]:>7} rows "
+            f"({split_row_counts[name] / total_rows:>6.2%})"
+        )
+
+    return train_idx, val_idx, test_idx
 
 def build_dataset(h5_path: Path, out_dir: Path, feature_set: str = "base8"):
     out_dir.mkdir(parents=True, exist_ok=True)
