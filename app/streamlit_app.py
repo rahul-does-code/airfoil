@@ -17,11 +17,12 @@ import torch
 import matplotlib.pyplot as plt
 import streamlit as st
 
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+REPO_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(REPO_ROOT / "src"))
 from model import AirfoilMLP
 
 # ── Config ────────────────────────────────────────────────────────────────────
-CKPT_PATH   = Path("models/mlp_geom13_physics0.001_wcd1_lowcd1_seed0.pt")
+CKPT_PATH = Path("models/mlp_geom13_physics0.001_wcd1_lowcd1_seed0.pt")
 SCALER_PATH = Path("data/processed/scaler.pkl")
 INPUT_DIM   = 13
 ALPHA_RANGE = (-5.0, 15.0)
@@ -122,22 +123,50 @@ model, scaler = load_model()
 # ── Sidebar inputs ────────────────────────────────────────────────────────────
 with st.sidebar:
     st.header("Airfoil Parameters")
-
     st.subheader("Geometry (NACA 4-digit)")
-    m = st.slider("Max camber  m", 0.00, 0.09, 0.02, step=0.01,
-                  help="1st digit / 100. NACA 0012 → m=0")
-    p = st.slider("Camber position  p", 0.0, 0.9, 0.4, step=0.1,
-                  help="2nd digit / 10. NACA 0012 → p=0")
-    t = st.slider("Thickness  t", 0.06, 0.21, 0.12, step=0.01,
-                  help="Digits 3–4 / 100. NACA 0012 → t=0.12")
+
+    m = st.slider(
+        "Max camber m",
+        0.00,
+        0.06,
+        0.02,
+        step=0.01,
+        help="1st digit / 100. NACA 0012 → m=0",
+    )
+
+    if m == 0:
+        p = 0.0
+        st.caption("symmetric NACA 00xx — p is 0 by definition")
+    else:
+        p = st.slider(
+            "Camber position p",
+            0.1,
+            0.7,
+            0.4,
+            step=0.1,
+            help="2nd digit / 10",
+        )
+
+    t = st.slider(
+        "Thickness t",
+        0.08,
+        0.18,
+        0.12,
+        step=0.01,
+        help="Digits 3–4 / 100. NACA 0012 → t=0.12",
+    )
+
+    st.caption(
+        "Training envelope: m ∈ [0, 0.06], p ∈ {0} ∪ [0.1, 0.7], "
+        "t ∈ [0.08, 0.18], Re ∈ [2×10⁵, 3×10⁶], α ∈ [−5°, 15°]."
+    )
 
     st.subheader("Flow Conditions")
     re = st.select_slider(
-        "Reynolds number",
-        options=[5e4, 1e5, 2e5, 5e5, 1e6, 2e6, 5e6],
-        value=1e6,
-        format_func=lambda x: f"{x:.0e}",
-    )
+    "Reynolds number",
+    options=[2e5, 5e5, 1e6, 2e6, 3e6],
+    value=1e6,
+    format_func=lambda x: f"{x:.0e}",)
 
     naca_label = (
         f"NACA {int(round(m*100))}"
