@@ -101,7 +101,7 @@ class AirfoilMLP(nn.Module):
         
         return self.net(x)
 
-class DeepEnsemble:
+"""class DeepEnsemble:
 
     def __init__(self, n_members: int = 5, **mlp_kwargs):
 
@@ -155,4 +155,4 @@ class DeepEnsemble:
 
         obj.n = n_members
 
-        return obj
+        return obj"""
