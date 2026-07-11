@@ -96,11 +96,8 @@ PYTHONPATH=. python src/evaluate.py
 Test rows: `11,801`
 
 | Model | Cl RMSE | Cl R² | Cd RMSE | Cd R² | Cm RMSE | Cm R² |
-
 |---|---:|---:|---:|---:|---:|---:|
-
 | PolyRidge baseline | 0.043486 | 0.9945 | 0.005557 | 0.7975 | 0.005130 | 0.9886 |
-
 | MLP, `w_physics=0.001` | 0.046053 | 0.9938 | 0.006030 | 0.7616 | 0.005554 | 0.9866 |
 
 The old pre-rebuild metrics should not be compared directly to these results because the previous split allowed discrete geometry leakage across train and test.
