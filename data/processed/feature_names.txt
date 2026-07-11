@@ -1,0 +1,13 @@
+sin_alpha
+cos_alpha
+log_re
+m_norm
+p_norm
+t_norm
+cl_linear
+t_over_c
+cl_linear_sq
+abs_sin_alpha
+t_norm_sq
+m_t
+t_abs_alpha
