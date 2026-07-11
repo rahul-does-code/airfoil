@@ -1,6 +1,5 @@
 from xfoil import XFoil
 from xfoil.model import Naca4
-import numpy as np
 
 
 xf = XFoil()
