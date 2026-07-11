@@ -22,8 +22,6 @@ Unconverged XFOIL points are excluded. These failures tend to cluster near and a
 
 ## Split
 
-## Split
-
 Train, validation, and test splits are performed by discrete airfoil identity using rounded NACA `(m, p, t)` digits. All angle-of-attack and Reynolds-number rows for a given airfoil stay in the same split.
 
 This measures generalization to unseen geometry, not generalization to unseen Reynolds numbers.
@@ -42,6 +40,7 @@ The rebuild includes a pytest invariant that reconstructs the discrete airfoil i
 train ∩ val: 0
 train ∩ test: 0
 val ∩ test: 0
+```
 
 ## Features
 
@@ -80,7 +79,7 @@ Targets are standardized:
 
 ```
 
-Cd positivity is handled by predicting standardized `log(Cd`, inverse-transforming the model output, and exponentiating `log(Cd)` during evaluation and app inference. There is no softplus Cd head.
+Cd positivity is handled by predicting standardized `log(Cd)`, inverse-transforming the model output, and exponentiating `log(Cd)` during evaluation and app inference. There is no softplus Cd head.
 
 ## Physics Loss
 
@@ -113,16 +112,15 @@ Test rows: `11,801`
 | Model | Cl RMSE | Cl R² | Cd RMSE | Cd R² | Cm RMSE | Cm R² |
 |---|---:|---:|---:|---:|---:|---:|
 | Polynomial Ridge baseline | 0.043486 | 0.9945 | 0.005557 | 0.7975 | 0.005130 | 0.9886 |
-| MLP, `w_physics=0` | 0.046776 | 0.9936 | 0.005945 | 0.7683 | 0.005763 | 0.9856 |
 | MLP, `w_physics=0.001` | 0.046776 | 0.9936 | 0.005945 | 0.7683 | 0.005763 | 0.9856 |
 
 ## Discussion
 
-The honest split changes the interpretation of the project. Under the discrete airfoil split, the Polynomial Ridge baseline currently outperforms the MLP on all three outputs. That does not make the rebuild a failure; it shows that the engineered physics-informed features carry much of the learnable structure, and that a simpler regularized model can generalize better than the current neural network on unseen NACA geometries.
+The rebuilt split changes the interpretation of the project. Under the discrete airfoil split, the Polynomial Ridge baseline currently outperforms the MLP on all three outputs. It doesn't make the rebuild a failure, instead it shows that the engineered physics-informed features carry much of the learnable structure, and that a simpler regularized model can generalize better than the current neural network on unseen NACA geometries.
 
-The main result is therefore not simply “the MLP works,” but that careful feature engineering, leakage-free splitting, and direct validation matter more than model complexity for this dataset. The `w_physics=0` ablation matched the `w_physics=0.001` run exactly at the printed precision, so the current physics penalty should be treated as validated implementation infrastructure rather than proven accuracy improvement.
+The main result is therefore not simply “the MLP works,” but that careful feature engineering, leakage-free splitting, and direct validation matter more than just how complex the model is for this dataset. The `w_physics=0.001` checkpoint is byte-identical to a retrained `w_physics=0` checkpoint, while a diagnostic `w_physics=1` run produces a different model. This indicates that the current production physics weight is effectively inactive for this training configuration.
 
-The deployed neural model remains useful as an experimental path, especially because the derivative penalty is now implemented and tested correctly. However, the current results should be read honestly: the neural model is not yet the strongest model in the repository by held-out RMSE/R². Future work should either improve the MLP under the same honest split or deploy the simpler baseline if predictive accuracy is the only goal.
+The deployed neural model remains useful as an experimental path, especially because the derivative penalty is implemented and finite-difference tested correctly. However, the current results should be read honestly: the neural model is not yet the strongest model in the repository by held-out RMSE/R², and the current physics penalty should be treated as validated implementation infrastructure rather than proven accuracy improvement. Future work should either tune the MLP and physics weight under the same honest split or deploy the simpler baseline if predictive accuracy is the only goal.
 
 ## Validation
 
@@ -267,5 +265,7 @@ The original local dataset was generated before rounded NACA geometry was stored
 - The geometry space is limited to NACA 4-series airfoils in the stated envelope.
 
 - The split tests generalization to unseen geometry, not unseen Reynolds numbers.
+
+- The held-out test split contains 73 unique airfoil geometries out of 483 total, so per-output R² values should be interpreted with modest test-shape sample size in mind.
 
 - The Streamlit airfoil display uses an approximate NACA plotting routine.
