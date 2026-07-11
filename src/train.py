@@ -77,6 +77,58 @@ def validate_alpha_derivative_coverage(feature_set: str) -> None:
             f"  - {joined}"
         )
 
+def chain_rule_dcl_scaled_dalpha(
+    model: nn.Module,
+    x: torch.Tensor,
+    feature_names: list[str] | None = None,
+) -> torch.Tensor:
+    """
+    Compute dCl_scaled/dalpha through engineered features.
+
+    This is the same total derivative used by the physics loss, factored out so
+    finite-difference tests can compare against exactly the training-time
+    derivative machinery.
+    """
+    x = x.clone().detach().requires_grad_(True)
+
+    y_pred = model(x)
+    cl_scaled = y_pred[:, 0]
+
+    grad_x = torch.autograd.grad(
+        cl_scaled.sum(),
+        x,
+        create_graph=True,
+    )[0]
+
+    # sin(alpha) and cos(alpha) are always columns 0 and 1 for known feature sets.
+    sin_a = x[:, 0]
+    cos_a = x[:, 1]
+
+    if feature_names is not None and feature_names[0] == "sin_alpha" and feature_names[1] == "cos_alpha":
+        dcl_scaled_dalpha = torch.zeros_like(sin_a)
+
+        for j, fname in enumerate(feature_names):
+            term_fn = ALPHA_DERIVATIVE_TERMS.get(fname)
+            if term_fn is not None:
+                dcl_scaled_dalpha = dcl_scaled_dalpha + grad_x[:, j] * term_fn(
+                    sin_a,
+                    cos_a,
+                    x,
+                )
+
+        return dcl_scaled_dalpha
+
+    print(
+        "WARNING: chain_rule_dcl_scaled_dalpha got no recognized feature_names; "
+        "falling back to sin/cos/cl_linear-only chain rule."
+    )
+
+    return (
+        grad_x[:, 0] * cos_a
+        + grad_x[:, 1] * (-sin_a)
+        + grad_x[:, 6] * (2 * torch.pi * cos_a)
+    )
+
 def physics_informed_loss(
     model: nn.Module,
     x: torch.Tensor,
@@ -126,8 +178,13 @@ def physics_informed_loss(
     if linear_mask.sum() < 2:
         return mse
 
-    x_lin = x[linear_mask].clone().detach().requires_grad_(True)
-    y_lin = model(x_lin)
+    x_lin = x[linear_mask]
+    dcl_scaled_dalpha = chain_rule_dcl_scaled_dalpha(
+    model=model,
+    x=x_lin,
+    feature_names=feature_names,
+    )
+    """y_lin = model(x_lin)
     cl_lin = y_lin[:, 0]
 
     grad_x = torch.autograd.grad(
@@ -157,7 +214,7 @@ def physics_informed_loss(
             grad_x[:, 0] * cos_a
             + grad_x[:, 1] * (-sin_a)
             + grad_x[:, 6] * (2 * torch.pi * cos_a)
-        )
+        )"""
 
     target_slope = (2 * torch.pi) / cl_std
     physics_penalty = F.mse_loss(
