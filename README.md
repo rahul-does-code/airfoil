@@ -6,7 +6,9 @@ The current rebuild focuses on credibility: geometry labels are stored as the ef
 
 ## Data
 
-The dataset contains XFOIL polars over discrete NACA 4-series airfoils. Geometry and Reynolds-number design points are sampled with Latin Hypercube Sampling over maximum camber `m`, camber location `p`, thickness `t`, and `log10(Re)`. Angle of attack is not LHS-sampled; it is swept from `-5°` to `15°` in `0.5°` increments.
+The dataset contains `74,090` XFOIL polar rows over `483` unique discrete NACA 4-series airfoils. Geometry and Reynolds-number design points are sampled with Latin Hypercube Sampling over maximum camber `m`, camber location `p`, thickness `t`, and `log10(Re)`. Angle of attack is not LHS-sampled; it is swept from `-5°` to `15°` in `0.5°` increments.
+
+Rows per airfoil vary because some XFOIL operating points fail to converge. The median airfoil contributes `122` rows, with a range from `10` to `967` rows.
 
 Training envelope:
 
@@ -20,11 +22,26 @@ Unconverged XFOIL points are excluded. These failures tend to cluster near and a
 
 ## Split
 
+## Split
+
 Train, validation, and test splits are performed by discrete airfoil identity using rounded NACA `(m, p, t)` digits. All angle-of-attack and Reynolds-number rows for a given airfoil stay in the same split.
 
 This measures generalization to unseen geometry, not generalization to unseen Reynolds numbers.
 
-The rebuild includes a pytest invariant that reconstructs the discrete airfoil identities and asserts that train/validation/test shape sets are pairwise disjoint.
+Current split:
+
+| Split | Airfoils | Shape fraction | Rows | Row fraction |
+|---|---:|---:|---:|---:|
+| Train | 338 | 69.98% | 51,903 | 70.05% |
+| Validation | 72 | 14.91% | 10,386 | 14.02% |
+| Test | 73 | 15.11% | 11,801 | 15.93% |
+
+The rebuild includes a pytest invariant that reconstructs the discrete airfoil identities and asserts that train/validation/test shape sets are pairwise disjoint. The verified intersections are:
+
+```text
+train ∩ val: 0
+train ∩ test: 0
+val ∩ test: 0
 
 ## Features
 
@@ -88,19 +105,24 @@ The `2π` target is a soft leading-order thin-airfoil prior. XFOIL slopes includ
 Evaluation command:
 
 ```bash
-
 PYTHONPATH=. python src/evaluate.py
-
 ```
 
 Test rows: `11,801`
 
 | Model | Cl RMSE | Cl R² | Cd RMSE | Cd R² | Cm RMSE | Cm R² |
 |---|---:|---:|---:|---:|---:|---:|
-| PolyRidge baseline | 0.043486 | 0.9945 | 0.005557 | 0.7975 | 0.005130 | 0.9886 |
-| MLP, `w_physics=0.001` | 0.046053 | 0.9938 | 0.006030 | 0.7616 | 0.005554 | 0.9866 |
+| Polynomial Ridge baseline | 0.043486 | 0.9945 | 0.005557 | 0.7975 | 0.005130 | 0.9886 |
+| MLP, `w_physics=0` | 0.046776 | 0.9936 | 0.005945 | 0.7683 | 0.005763 | 0.9856 |
+| MLP, `w_physics=0.001` | 0.046776 | 0.9936 | 0.005945 | 0.7683 | 0.005763 | 0.9856 |
 
-The old pre-rebuild metrics should not be compared directly to these results because the previous split allowed discrete geometry leakage across train and test.
+## Discussion
+
+The honest split changes the interpretation of the project. Under the discrete airfoil split, the Polynomial Ridge baseline currently outperforms the MLP on all three outputs. That does not make the rebuild a failure; it shows that the engineered physics-informed features carry much of the learnable structure, and that a simpler regularized model can generalize better than the current neural network on unseen NACA geometries.
+
+The main result is therefore not simply “the MLP works,” but that careful feature engineering, leakage-free splitting, and direct validation matter more than model complexity for this dataset. The `w_physics=0` ablation matched the `w_physics=0.001` run exactly at the printed precision, so the current physics penalty should be treated as validated implementation infrastructure rather than proven accuracy improvement.
+
+The deployed neural model remains useful as an experimental path, especially because the derivative penalty is now implemented and tested correctly. However, the current results should be read honestly: the neural model is not yet the strongest model in the repository by held-out RMSE/R². Future work should either improve the MLP under the same honest split or deploy the simpler baseline if predictive accuracy is the only goal.
 
 ## Validation
 
@@ -233,6 +255,8 @@ streamlit run app/streamlit_app.py
 ## Data Provenance
 
 The original local dataset was generated before rounded NACA geometry was stored in the HDF5 labels. `src/relabel_data.py` was used once to migrate that dataset from pre-rounding continuous labels to the effective simulated NACA geometry. Fresh datasets generated after the rebuild do not need this migration.
+
+
 
 ## Limitations
 
