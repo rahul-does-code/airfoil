@@ -112,15 +112,18 @@ Test rows: `11,801`
 | Model | Cl RMSE | Cl R² | Cd RMSE | Cd R² | Cm RMSE | Cm R² |
 |---|---:|---:|---:|---:|---:|---:|
 | Polynomial Ridge baseline | 0.043486 | 0.9945 | 0.005557 | 0.7975 | 0.005130 | 0.9886 |
-| MLP, `w_physics=0.001` | 0.046776 | 0.9936 | 0.005945 | 0.7683 | 0.005763 | 0.9856 |
+| MLP, `w_physics=0` | 0.046776 | 0.9936 | 0.005945 | 0.7683 | 0.005763 | 0.9856 |
+| MLP, `w_physics=0.001` | 0.046053 | 0.9938 | 0.006030 | 0.7616 | 0.005554 | 0.9866 |
 
 ## Discussion
 
-The rebuilt split changes the interpretation of the project. Under the discrete airfoil split, the Polynomial Ridge baseline currently outperforms the MLP on all three outputs. It doesn't make the rebuild a failure, instead it shows that the engineered physics-informed features carry much of the learnable structure, and that a simpler regularized model can generalize better than the current neural network on unseen NACA geometries.
+The rebuild changes the interpretation of the project. Under the discrete airfoil split, the Polynomial Ridge baseline currently outperforms both MLP variants on all three outputs, showing that the engineered physics-informed features carry a lot of the learnable structure, and that a simpler regularized model can generalize better than the current neural network on unseen NACA geometries.
 
-The main result is therefore not simply “the MLP works,” but that careful feature engineering, leakage-free splitting, and direct validation matter more than just how complex the model is for this dataset. The `w_physics=0.001` checkpoint is byte-identical to a retrained `w_physics=0` checkpoint, while a diagnostic `w_physics=1` run produces a different model. This indicates that the current production physics weight is effectively inactive for this training configuration.
+The main result is therefore not simply “the MLP works,” but that careful feature engineering, leakage-free splitting, and direct validation matter more than model complexity for this dataset. The fresh `w_physics=0` and `w_physics=0.001` runs produce distinct checkpoints, and a one-batch gradient probe confirms that the physics term contributes a nonzero gradient. In that probe, the supervised-loss gradient norm was `0.9648`, while the weighted physics-penalty gradient norm was `0.00319`.
 
-The deployed neural model remains useful as an experimental path, especially because the derivative penalty is implemented and finite-difference tested correctly. However, the current results should be read honestly: the neural model is not yet the strongest model in the repository by held-out RMSE/R², and the current physics penalty should be treated as validated implementation infrastructure rather than proven accuracy improvement. Future work should either tune the MLP and physics weight under the same honest split or deploy the simpler baseline if predictive accuracy is the only goal.
+The `w_physics=0.001` run slightly improves `Cl` and `Cm` relative to `w_physics=0`, but slightly worsens `Cd`. The effect is small compared with the gap between the MLPs and the Polynomial Ridge baseline, so the current physics penalty should be treated as correctly implemented and experimentally active, but not as a major accuracy improvement without further tuning.
+
+The deployed neural model remains useful as an experimental path, especially because the derivative penalty is implemented and finite-difference tested correctly. However, the current results should be read honestly: the neural model is not yet the strongest model in the repository by held-out RMSE/R². Future work should either tune the MLP and physics weight under the same honest split or deploy the simpler baseline if predictive accuracy is the only goal.
 
 ## Validation
 
