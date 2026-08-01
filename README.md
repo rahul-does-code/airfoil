@@ -115,6 +115,7 @@ Test rows: `11,801`
 | MLP, `w_physics=0` | 0.046776 | 0.9936 | 0.005945 | 0.7683 | 0.005763 | 0.9856 |
 | MLP, `w_physics=0.001` | 0.046053 | 0.9938 | 0.006030 | 0.7616 | 0.005554 | 0.9866 |
 
+Test metrics are computed over the 73 held-out airfoils (11,801 rows) described in [Split](#split).
 ## Discussion
 
 The rebuild changes the interpretation of the project. Under the discrete airfoil split, the Polynomial Ridge baseline currently outperforms both MLP variants on all three outputs, showing that the engineered physics-informed features carry a lot of the learnable structure, and that a simpler regularized model can generalize better than the current neural network on unseen NACA geometries.

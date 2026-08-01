@@ -1,0 +1,21 @@
+Device: cpu | Seed: 0
+Cl std from scaler: 0.580665
+Physics loss version: chain-rule dCl/dalpha through all alpha-dependent features of feature_set=geom13
+Training config: feature_set=geom13, input_dim=13, epochs=150, batch_size=2048, lr=0.0003, w_cd=1.0, w_cd_low_alpha=1.0, w_physics=0.001
+Epoch   1 | train=2.877922 | val=0.623022 | cl=0.515887 cd=0.491449 cm=0.861729
+Epoch  10 | train=0.257781 | val=0.091731 | cl=0.021813 cd=0.188496 cm=0.064884
+Epoch  20 | train=0.197126 | val=0.076776 | cl=0.015331 cd=0.151280 cm=0.063717
+Epoch  30 | train=0.167948 | val=0.069204 | cl=0.009975 cd=0.149408 cm=0.048230
+Epoch  40 | train=0.160327 | val=0.065606 | cl=0.008772 cd=0.142008 cm=0.046037
+Epoch  50 | train=0.154924 | val=0.064816 | cl=0.009004 cd=0.140335 cm=0.045108
+Epoch  60 | train=0.147346 | val=0.065969 | cl=0.009752 cd=0.146360 cm=0.041796
+Epoch  70 | train=0.136131 | val=0.063023 | cl=0.009762 cd=0.140387 cm=0.038921
+Epoch  80 | train=0.128851 | val=0.056220 | cl=0.010676 cd=0.125060 cm=0.032924
+Epoch  90 | train=0.113729 | val=0.055637 | cl=0.011535 cd=0.130229 cm=0.025146
+Epoch 100 | train=0.102457 | val=0.049434 | cl=0.008309 cd=0.121596 cm=0.018396
+Epoch 110 | train=0.095602 | val=0.048224 | cl=0.008379 cd=0.121216 cm=0.015075
+Epoch 120 | train=0.091266 | val=0.047060 | cl=0.008082 cd=0.119508 cm=0.013589
+Epoch 130 | train=0.088800 | val=0.046644 | cl=0.008060 cd=0.119114 cm=0.012758
+Epoch 140 | train=0.088311 | val=0.045863 | cl=0.007790 cd=0.117334 cm=0.012464
+Epoch 150 | train=0.088014 | val=0.045921 | cl=0.007831 cd=0.117446 cm=0.012488
+Saved best model → models/mlp_geom13_physics0.001_wcd1_lowcd1_seed0.pt
