@@ -23,8 +23,20 @@ from sklearn.preprocessing import StandardScaler
 from model import AirfoilMLP
 from preprocess import load_raw, engineer_features, shape_level_split
 
-RAW_H5 = Path("data/raw/polar_dataset.h5")
+RAW_H5 = Path("data/raw/polar_dataset_relabeled.h5")
 MODELS = Path("models")
+
+def prepare_data():
+    """..."""
+    import h5py
+    with h5py.File(RAW_H5, "r") as _f:
+        if "migration" not in _f.attrs:
+            raise SystemExit(
+                f"{RAW_H5} has no 'migration' attribute — this is the pre-relabel "
+                "dataset. Re-splitting it yields 548 apparent shapes, so the test set "
+                "overlaps training geometries and all metrics are leakage-contaminated."
+            )
+    data = load_raw(RAW_H5)
 
 # ── Experiment registry ───────────────────────────────────────────────────────
 # (display_name, kind, path, feature_set, input_dim)

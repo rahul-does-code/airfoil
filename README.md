@@ -212,7 +212,7 @@ Preprocess:
 
 PYTHONPATH=. python src/preprocess.py \
 
-  --h5_path data/raw/polar_dataset.h5 \
+  --h5_path data/raw_polar_dataset_relabeled.h5 \
 
   --out_dir data/processed \
 

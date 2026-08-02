@@ -236,10 +236,20 @@ def build_dataset(h5_path: Path, out_dir: Path, feature_set: str = "base8"):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--h5_path", type=Path, default=Path("data/raw/polar_dataset.h5"))
+    parser.add_argument("--h5_path", type=Path, default=Path("data/raw/polar_dataset_relabeled.h5"))
     parser.add_argument("--out_dir", type=Path, default=Path("data/processed"))
     parser.add_argument("--feature_set", choices=sorted(FEATURE_SETS), default="base8")
     args = parser.parse_args()
+
+    import h5py
+    with h5py.File(args.h5_path, "r") as _f:
+        if "migration" not in _f.attrs:
+            raise SystemExit(
+                f"{args.h5_path} has no 'migration' attribute — this looks like the "
+                "pre-relabel dataset. Preprocessing it reproduces the geometry-labeling "
+                "bug (548 apparent shapes instead of 483). Run src/relabel_data.py first, "
+                "or pass --h5_path data/raw/polar_dataset_relabeled.h5."
+            )
 
     build_dataset(
         h5_path=args.h5_path,
