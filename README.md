@@ -8,7 +8,9 @@ The current rebuild focuses on credibility: geometry labels are stored as the ef
 
 The dataset contains `74,090` XFOIL polar rows over `483` unique discrete NACA 4-series airfoils. Geometry and Reynolds-number design points are sampled with Latin Hypercube Sampling over maximum camber `m`, camber location `p`, thickness `t`, and `log10(Re)`. Angle of attack is not LHS-sampled; it is swept from `-5°` to `15°` in `0.5°` increments.
 
-Rows per airfoil vary because some XFOIL operating points fail to converge. The median airfoil contributes `122` rows, with a range from `10` to `967` rows.
+Rows per airfoil vary because the Latin hypercube sampled 2,000 (geometry, Reynolds) pairs across 483 distinct shapes, so some airfoils were drawn at many Reynolds numbers and others at only one (median 3, range 1–24). The median airfoil contributes '122' rows, with a range from '10' to '967'. This count is driven by Reynolds multiplicity rather than convergence success: it correlates with the number of Reynolds numbers sampled at r = 0.997, and each (airfoil, Re) pair yields 39.1 rows on average against a 41-point α grid.
+
+Degenerate camber at p = 0. NACA 4-digit camber is piecewise and undefined at p = 0. 'naca.py' collapses 'd2' to 0 when 'd1' is 0 (a symmetric airfoil has no camber position), but the reverse case is not guarded: 53 of 483 shapes have m > 0 with p = 0, covering 4,856 rows. XFOIL builds these from the aft branch alone, yc = m(1 − x²), which raises the leading edge by m·c and yields less effective camber than a conventional p > 0 airfoil at the same m. Measured at m = 0.03 and controlling for thickness, these shapes sit roughly 0.02 lower in Cl₀ than the nearest p = 1 shapes. The rows are retained; 'm_norm' should be read as a nominal parameter that does not carry consistent physical meaning across the p = 0 boundary. The Streamlit app does not expose this region (the p slider starts at 0.1 when m > 0) so served predictions stay inside the envelope where the encoding is unambiguous.
 
 Training envelope:
 
@@ -18,7 +20,7 @@ Training envelope:
 - `Re ∈ [2×10^5, 3×10^6]`
 - `α ∈ [-5°, 15°]`
 
-Unconverged XFOIL points are excluded. These failures tend to cluster near and after stall, so the dataset and reported metrics under-represent that regime.
+Unconverged XFOIL points are excluded. Convergence rate is roughly flat across the swept angle range (93.7%–98.0%, mean 96.2%), and is marginally higher at α ≥ 10° than at α ≤ 5° (+0.54 pp), so this exclusion does not systematically bias any particular α regime. The dataset contains no post-stall data because the sweep ends at α = 15°, which is a sampling-range limitation rather than a convergence artifact.
 
 ## Split
 
@@ -262,7 +264,7 @@ The original local dataset was generated before rounded NACA geometry was stored
 
 ## Limitations
 
-- XFOIL convergence censoring removes many near-stall and post-stall points.
+- The α sweep ends at 15°, so the dataset contains no post-stall behavior and the surrogate should not be used there. This is a sampling-range choice, not convergence censoring; failure rates are flat across the swept range.
 
 - The physics target is a thin-airfoil leading-order prior, not the exact XFOIL slope.
 

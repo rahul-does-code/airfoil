@@ -1,0 +1,57 @@
+file: data/raw/polar_dataset_relabeled.h5
+attrs n_samples=2000  n_failed=122  total_rows=74090
+successful runs (unique log_re): 1878
+
+convergence rate by alpha (% of successful runs producing a row):
+  alpha=  -5.0    94.83%
+  alpha=  -4.5    95.10%
+  alpha=  -4.0    96.17%
+  alpha=  -3.5    96.33%
+  alpha=  -3.0    96.59%
+  alpha=  -2.5    94.99%
+  alpha=  -2.0    95.69%
+  alpha=  -1.5    95.79%
+  alpha=  -1.0    94.73%
+  alpha=  -0.5    94.89%
+  alpha=   0.0    96.17%
+  alpha=   0.5    95.26%
+  alpha=   1.0    95.74%
+  alpha=   1.5    94.68%
+  alpha=   2.0    94.94%
+  alpha=   2.5    94.83%
+  alpha=   3.0    95.85%
+  alpha=   3.5    96.54%
+  alpha=   4.0    96.70%
+  alpha=   4.5    96.27%
+  alpha=   5.0    96.49%
+  alpha=   5.5    97.23%
+  alpha=   6.0    97.28%
+  alpha=   6.5    97.44%
+  alpha=   7.0    97.71%
+  alpha=   7.5    97.50%
+  alpha=   8.0    97.66%
+  alpha=   8.5    97.98%
+  alpha=   9.0    97.98%
+  alpha=   9.5    97.76%
+  alpha=  10.0    97.66%
+  alpha=  10.5    97.34%
+  alpha=  11.0    97.50%
+  alpha=  11.5    97.34%
+  alpha=  12.0    96.91%
+  alpha=  12.5    96.43%
+  alpha=  13.0    96.06%
+  alpha=  13.5    95.47%
+  alpha=  14.0    95.10%
+  alpha=  14.5    94.52%
+  alpha=  15.0    93.72%
+
+  min=93.72%  max=97.98%  mean=96.22%
+  spread (max-min) = 4.26 percentage points
+  mean rate at alpha<=5: 95.65%   at alpha>=10: 96.19%   difference: +0.54 pp
+  NOTE: sweep ends at alpha=15.0; no post-stall points were ever requested.
+
+airfoils: 483
+rows per airfoil: min=10  median=122  max=967
+Re values per airfoil: min=1  median=3  max=24
+corr(rows, n_re) = 0.9973
+mean rows per Re value = 39.1  (alpha grid has 41 points)
